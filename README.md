@@ -42,6 +42,25 @@ The current `POST /requirements` and `GET /requirements/{id}` routes are a delib
 
 The full, up-to-date status is maintained in `docs/report.md` and is expected to evolve incrementally, milestone by milestone, alongside this README.
 
+## Architecture
+
+BridgeIT follows a Hexagonal (Ports and Adapters) Architecture: driving adapters → application layer → domain / AI Gateway → driven adapters. Dependencies always point inward, toward the domain.
+
+### Components
+
+| Component | Layer | Role |
+|---|---|---|
+| `Requirement` | Domain | Aggregate root; identity, text, status, and the lifecycle transitions it governs |
+| `RequirementText`, `RequirementStatus` | Domain | Immutable value objects describing a requirement's wording and lifecycle state |
+| `RequirementRepository` | Application (port) | Abstract contract for persisting and retrieving `Requirement` aggregates, independent of any storage technology |
+| DTOs (`RequirementCreateRequest`, `RequirementResponse`) | Application | Pydantic models shaping the API's HTTP boundary, distinct from domain objects |
+| `SQLiteRequirementRepository` | Infrastructure (driven adapter) | Concrete implementation of `RequirementRepository`, backed by `sqlite3` |
+| FastAPI routes (`bridgeit/adapters/api/`) | Adapter (driving) | Exposes the REST API; translates HTTP requests into application-layer calls |
+| `ApiError` / error handlers | Adapter (driving) | Ensures every API error response follows the shared `{"error": {"code", "message"}}` format |
+| Web client (`web/`) | External client | Static HTML/CSS/JavaScript frontend, consuming the REST API only via `fetch()` |
+
+A full description of the layering, dependency rules, and the illustrative API design lives in `docs/architecture.md`. The complete domain model — entities, value objects, invariants, and the project's ubiquitous language — lives in `docs/domain-model.md`.
+
 ## Repository Organization
 
 At this stage, this repository contains both the implementation and the full project documentation (`docs/`). Keeping the two together simplifies iteration while the codebase and documentation are still evolving in step with one another.
@@ -57,21 +76,24 @@ The project's documentation is currently available in two places:
 
 The dedicated repository is intended to become the canonical location for the project's documentation, consistent with the repository organization recommended for the University of Bologna Software Engineering course. The local copy under `docs/` will eventually be migrated there without any change to its contents; until that migration is complete, the links in this README continue to point to the local copy.
 
-## Architecture & Documentation
-
-Full project documentation lives under `docs/`. Each document has a distinct, non-overlapping scope:
-
 | Document | Summary |
 |---|---|
-| Report | Project vision, problem statement, functional and non-functional requirements, user stories, workflow, methodology, roadmap, and current development status. |
-| Architecture | The Hexagonal Architecture layering (driving adapters → application layer → domain / AI Gateway → driven adapters), the dependency rules that govern it, the AI Gateway's isolation from the domain, the proposed package structure, and the illustrative API design. |
-| Domain Model | The Domain-Driven Design model: entities (`Requirement`, `Artifact`, `AI Analysis`, `Traceability Link`), value objects, domain rules, the `Requirement` aggregate root and the invariants it protects, and the project's ubiquitous language. |
+| Report (`docs/report.md`) | Project vision, problem statement, functional and non-functional requirements, user stories, workflow, methodology, roadmap, and current development status. |
+| Architecture (`docs/architecture.md`) | The Hexagonal Architecture layering, dependency rules, the AI Gateway's isolation from the domain, the proposed package structure, and the illustrative API design. |
+| Domain Model (`docs/domain-model.md`) | The Domain-Driven Design model: entities, value objects, domain rules, the `Requirement` aggregate root and the invariants it protects. |
 
 All three documents are kept consistent with one another and are updated incrementally as the project progresses, following the same Conventional Commits discipline used for the codebase.
 
+## Requirements
+
+- Python >= 3.10
+- Poetry (dependency manager)
+- FastAPI and Uvicorn (installed automatically by Poetry)
+- A modern web browser (for the frontend, no build tools required)
+
 ## Development Setup
 
-BridgeIT is built in Python and managed with Poetry.
+### Installation
 
 ```bash
 # Clone the repository
@@ -82,9 +104,26 @@ cd BridgeIT-artifact
 poetry install
 ```
 
-### Running the API server
+### Virtual environment
 
-Once dependencies are installed, start the FastAPI development server:
+All project commands run inside the `.venv/` virtual environment created by Poetry (configured via `poetry.toml` to live inside the project folder). You don't need to activate it manually: prefixing any command with `poetry run` (as shown throughout this README) runs it inside that environment automatically.
+
+If you prefer to activate it once per terminal session instead:
+
+```bash
+# macOS / Linux
+source .venv/bin/activate
+
+# Windows (PowerShell)
+.venv\Scripts\Activate.ps1
+
+# Windows (cmd)
+.venv\Scripts\activate.bat
+```
+
+To deactivate: `deactivate`
+
+### Running the API server
 
 ```bash
 poetry run uvicorn bridgeit.adapters.api.main:app --reload
@@ -96,7 +135,7 @@ The API will be available at `http://127.0.0.1:8000`, with interactive documenta
 
 With the API server running, open `web/index.html` (or any page under `web/`) directly in a browser. The frontend is a static HTML/CSS/JavaScript client with no build step required.
 
-## Quality Assurance
+## Development
 
 Project tasks are run through `poe` (Poe the Poet), configured as the project's task runner on top of Poetry.
 
@@ -109,9 +148,12 @@ poetry run poe static-checks
 
 # Check code formatting (Ruff)
 poetry run poe format-check
+
+# Auto-fix code formatting
+poetry run poe format
 ```
 
-All three commands are expected to be run locally before every commit, and are also enforced automatically in the project's Continuous Integration pipeline (see `docs/report.md` — Continuous Integration and Continuous Delivery).
+All of the above are expected to be run locally before every commit, and are also enforced automatically in the project's Continuous Integration pipeline (see `docs/report.md` — Continuous Integration and Continuous Delivery).
 
 ## License
 
