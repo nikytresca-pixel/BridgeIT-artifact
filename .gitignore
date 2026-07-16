@@ -144,3 +144,6 @@ dmypy.json
 .pyre/
 
 bridgeit.db
+
+htmlcov/
+.coverage
